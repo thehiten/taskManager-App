@@ -1,14 +1,42 @@
 import Task from '../models/task.model.js';
 
-// Create task
+// Create dispatch task
 export const createTask = async (req, res) => {
   try {
-    const { title, description } = req.body;
+    const {
+      uniqueId,
+      soId,
+      clientCode,
+      productCode,
+      productName,
+      batchNumber,
+      batchSize,
+      quantity,
+      dueDate,
+      assignedTo,
+      orderType
+    } = req.body;
+    
     const userId = req.user._id;
+    const createdBy = req.user.email || 'system';
+
+    // Generate unique dispatch ID
+    const dispatchUnique = `DISP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     const task = new Task({
-      title,
-      description,
+      dispatchUnique,
+      uniqueId,
+      soId,
+      clientCode,
+      productCode,
+      productName,
+      batchNumber,
+      batchSize,
+      quantity,
+      dueDate: new Date(dueDate),
+      assignedTo: assignedTo || 'Unassigned',
+      createdBy,
+      orderType: orderType || 'OTHER',
       user: userId
     });
 
@@ -16,7 +44,7 @@ export const createTask = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Task created successfully',
+      message: 'Dispatch task created successfully',
       task
     });
   } catch (error) {
@@ -47,8 +75,12 @@ export const getTasks = async (req, res) => {
     // Add search filter
     if (search) {
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { dispatchUnique: { $regex: search, $options: 'i' } },
+        { uniqueId: { $regex: search, $options: 'i' } },
+        { soId: { $regex: search, $options: 'i' } },
+        { clientCode: { $regex: search, $options: 'i' } },
+        { productCode: { $regex: search, $options: 'i' } },
+        { productName: { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -126,7 +158,22 @@ export const updateTask = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
-    const { title, description, status } = req.body;
+    const {
+      uniqueId,
+      soId,
+      clientCode,
+      productCode,
+      productName,
+      batchNumber,
+      batchSize,
+      quantity,
+      status,
+      dueDate,
+      dispatchDate,
+      assignedTo,
+      orderType,
+      dispatched
+    } = req.body;
 
     const task = await Task.findOne({ _id: id, user: userId });
     if (!task) {
@@ -137,9 +184,26 @@ export const updateTask = async (req, res) => {
     }
 
     // Update fields
-    if (title !== undefined) task.title = title;
-    if (description !== undefined) task.description = description;
+    if (uniqueId !== undefined) task.uniqueId = uniqueId;
+    if (soId !== undefined) task.soId = soId;
+    if (clientCode !== undefined) task.clientCode = clientCode;
+    if (productCode !== undefined) task.productCode = productCode;
+    if (productName !== undefined) task.productName = productName;
+    if (batchNumber !== undefined) task.batchNumber = batchNumber;
+    if (batchSize !== undefined) task.batchSize = batchSize;
+    if (quantity !== undefined) task.quantity = quantity;
     if (status !== undefined) task.status = status;
+    if (dueDate !== undefined) task.dueDate = new Date(dueDate);
+    if (dispatchDate !== undefined) task.dispatchDate = dispatchDate ? new Date(dispatchDate) : null;
+    if (assignedTo !== undefined) task.assignedTo = assignedTo;
+    if (orderType !== undefined) task.orderType = orderType;
+    if (dispatched !== undefined) task.dispatched = dispatched;
+
+    // Auto-set dispatch date when status changes to DISPATCH
+    if (status === 'DISPATCH' && !task.dispatchDate) {
+      task.dispatchDate = new Date();
+      task.dispatched = true;
+    }
 
     await task.save();
 
